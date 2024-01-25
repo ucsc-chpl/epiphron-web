@@ -11,10 +11,10 @@ self.addEventListener('message', (ev) => {
             working = true;
             console.log(`Started worker on element ${i}`);
             while (working) { Atomics.add(bufArray, i, 1); }
+            console.log(`Terminating worker on element ${i}...`);
             break;
         case 'stop':
             working = false;
-            postMessage(null);
             break;
     }
 });
