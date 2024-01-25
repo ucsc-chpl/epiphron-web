@@ -14,10 +14,12 @@ async function cpuAtomicTest(contention=1, padding=1) {
     console.log(`Testing CPU atomics with contention ${contention} and padding ${padding}...`);
     
     // Setup SharedArrayBuffer for atomics
-    let bufLen = Uint8Array.BYTES_PER_ELEMENT * Math.ceil(navigator.hardwareConcurrency * padding / contention);
+    let bufLen = Int32Array.BYTES_PER_ELEMENT * Math.ceil(navigator.hardwareConcurrency * padding / contention);
     const buffer = new SharedArrayBuffer(bufLen);
-    const bufArray = new Uint8Array(buffer);
-    for (let i = 0; i < bufArray.length; i++) bufArray[i] = 0;
+    const bufArray = new Int32Array(buffer);
+    for (let i = 0; i < bufArray.length; i++) {
+        Atomics.store(bufArray, i, 0);
+    }
 
     console.log(bufArray);
 
@@ -28,7 +30,7 @@ async function cpuAtomicTest(contention=1, padding=1) {
         cpuWorkers[i].postMessage({msg : 'start', buffer : buffer, i : Math.floor(i / contention * padding)});
     }
     
-    await delay(4000);
+    await delay(1000);
 
     // End workers
     cpuWorkers.forEach((w) => w.postMessage({msg : 'stop'}));
@@ -37,7 +39,9 @@ async function cpuAtomicTest(contention=1, padding=1) {
     console.log(`Workers terminated after ${test_time} ms.`);
 
     let res = 0;
-    for (let i = 0; i < bufArray.length; i++) res += Atomics.load(bufArray, i);
+    for (let i = 0; i < bufArray.length; i++) {
+        res += Atomics.load(bufArray, i);
+    }
     console.log(`Performed ${res} operations.`);
     console.log(`Throughput: ${res / test_time} atomic ops/ms`);
     return res / test_time;
@@ -57,4 +61,4 @@ async function gpuAtomicTest(contention=1, padding=1) {
 
 
 cpuAtomicSweep();
-// cpuAtomicTest(4, 1);
+//cpuAtomicTest(4, 1);

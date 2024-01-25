@@ -7,10 +7,13 @@ self.addEventListener('message', (ev) => {
         case 'start':
             let i = ev.data.i;
             let buffer = ev.data.buffer;
-            let bufArray = new Uint8Array(buffer);
+            let bufArray = new Int32Array(buffer);
             working = true;
             console.log(`Started worker on element ${i}`);
-            while (working) { Atomics.add(bufArray, i, 1); }
+            while (working) { 
+                Atomics.add(bufArray, i, 1); 
+                //Atomics.notify(bufArray, i); 
+            }
             console.log(`Terminating worker on element ${i}...`);
             break;
         case 'stop':
