@@ -4,36 +4,35 @@
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 console.log(`Detected ${navigator.hardwareConcurrency} logical cores...`);
-let cpuWorkers = [];
-for (let i = 0; i < navigator.hardwareConcurrency; i++) {
-    let w = new Worker('cpuWorker.js');
-    cpuWorkers.push(w);
-}
 
 async function cpuAtomicTest(contention=1, padding=1) {
     console.log(`Testing CPU atomics with contention ${contention} and padding ${padding}...`);
     
     // Setup SharedArrayBuffer for atomics
-    let bufLen = Int32Array.BYTES_PER_ELEMENT * Math.ceil(navigator.hardwareConcurrency * padding / contention);
+    let bufLen = Uint32Array.BYTES_PER_ELEMENT * Math.ceil(navigator.hardwareConcurrency * padding / contention);
     const buffer = new SharedArrayBuffer(bufLen);
-    const bufArray = new Int32Array(buffer);
+    const bufArray = new Uint32Array(buffer);
     for (let i = 0; i < bufArray.length; i++) {
         Atomics.store(bufArray, i, 0);
     }
+    //console.log(bufArray);
 
-    console.log(bufArray);
+    // Initialize workers
+    const cpuWorkers = [];
+    for (let i = 0; i < navigator.hardwareConcurrency; i++) {
+        cpuWorkers.push(new Worker('cpuWorker.js'));
+    }
 
     // Start timer and workers
-    finished_workers = 0;
     let start_time = performance.now();
     for (let i = 0; i < navigator.hardwareConcurrency; i++) {
-        cpuWorkers[i].postMessage({msg : 'start', buffer : buffer, i : Math.floor(i / contention * padding)});
+        cpuWorkers[i].postMessage({buffer : buffer, i : Math.floor(i / contention * padding)});
     }
     
-    await delay(1000);
+    await delay(10000);
 
     // End workers
-    cpuWorkers.forEach((w) => w.postMessage({msg : 'stop'}));
+    cpuWorkers.forEach((w) => w.terminate());
     let end_time = performance.now();
     let test_time = end_time - start_time;
     console.log(`Workers terminated after ${test_time} ms.`);
@@ -43,15 +42,49 @@ async function cpuAtomicTest(contention=1, padding=1) {
         res += Atomics.load(bufArray, i);
     }
     console.log(`Performed ${res} operations.`);
-    console.log(`Throughput: ${res / test_time} atomic ops/ms`);
-    return res / test_time;
+    console.log(`Throughput: ${res / test_time / 1000} atomic ops/microsecond`);
+    return res / test_time / 1000;
 }
 
-async function cpuAtomicSweep() {
-    await cpuAtomicTest(1, 1);
-    await cpuAtomicTest(1, 2);
-    await cpuAtomicTest(2, 1);
-    await cpuAtomicTest(2, 2);
+async function cpuAtomicSweep(contention = 8, padding = 8) {
+    console.log(`Sweeping through contention from 1-${contention} and padding from 1-${padding}`);
+    let x = [];
+    let y = [];
+    let z = [];
+    for (let c = 1; c <= contention; c *= 2) x.push(c);
+
+    let layout = {
+        title: 'CPU Atomic Results',
+        xaxis: { type : 'category', title: 'Contention' },
+        yaxis: { type : 'category', title : 'Padding' },
+        annotations : []
+    };
+    for (let p = 1; p <= padding; p *= 2) {
+        y.push(p);
+        let row = [];
+        for (let c = 1; c <= contention; c *= 2) {
+            let res = await cpuAtomicTest(c, p);
+            row.push(res);
+            layout.annotations.push({ 
+                x : Math.log2(c), y : Math.log2(p), 
+                text : parseFloat(res).toFixed(2), 
+                font : {
+                    color: 'white',
+                },
+                showarrow: false,
+                bgcolor: 'black'
+            });
+        }
+        z.push(row);
+    }
+    Plotly.newPlot('cpu-results', [{
+        x : x,
+        y : y,
+        z : z,
+        type : 'heatmap',
+        colorscale : 'Viridis',
+        colorbar : {title : { text : 'Atomic Operations per Microsecond', side : 'right'}}
+    }], layout);
 }
 
 async function gpuAtomicTest(contention=1, padding=1) {
@@ -60,5 +93,6 @@ async function gpuAtomicTest(contention=1, padding=1) {
 
 
 
-cpuAtomicSweep();
+cpuAtomicSweep(navigator.hardwareConcurrency, navigator.hardwareConcurrency);
+//cpuAtomicSweep(4, 4);
 //cpuAtomicTest(4, 1);
