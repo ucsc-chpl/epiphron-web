@@ -3,8 +3,6 @@
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-console.log(`Detected ${navigator.hardwareConcurrency} logical cores...`);
-
 async function cpuAtomicTest(contention=1, padding=1) {
     console.log(`Testing CPU atomics with contention ${contention} and padding ${padding}...`);
     
@@ -47,7 +45,8 @@ async function cpuAtomicTest(contention=1, padding=1) {
 }
 
 async function cpuAtomicSweep(contention = 8, padding = 8) {
-    console.log(`Sweeping through contention from 1-${contention} and padding from 1-${padding}`);
+    console.log(`Detected ${navigator.hardwareConcurrency} logical cores...`);
+    console.log(`Sweeping through CPU atomics with contention from 1-${contention} and padding from 1-${padding}`);
     let x = [];
     let y = [];
     let z = [];
@@ -87,12 +86,41 @@ async function cpuAtomicSweep(contention = 8, padding = 8) {
     }], layout);
 }
 
+async function initializeGPU() {
+    if (!navigator.gpu) throw Error("WebGPU not supported.");
+
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) throw Error("Couldn't request WebGPU adapter.");
+
+    const device = await adapter.requestDevice();
+    if (!device) throw Error("Couldn't request WebGPU device.");
+    
+    return { adapter, device };
+}
+
 async function gpuAtomicTest(contention=1, padding=1) {
 
 }
 
+async function gpuAtomicSweep(contention=1, padding=1) {
+    console.log(`Sweeping through GPU atomics with contention from 1-${contention} and padding from 1-${padding}`);
+    let adapter, device;
+    try {
+        ({ adapter, device }) = await initializeGPU();
+    } catch (e) {
+        alert('Error initializing WebGPU - check console for more info.');
+        console.error(e);
+        return;
+    }
+    
+}
 
 
-cpuAtomicSweep(navigator.hardwareConcurrency, navigator.hardwareConcurrency);
+
 //cpuAtomicSweep(4, 4);
 //cpuAtomicTest(4, 1);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    //await cpuAtomicSweep(navigator.hardwareConcurrency, 16);
+    await gpuAtomicSweep(16, 16);
+});
