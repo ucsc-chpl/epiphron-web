@@ -27,7 +27,7 @@ async function cpuAtomicTest(contention=1, padding=1) {
         cpuWorkers[i].postMessage({buffer : buffer, i : Math.floor(i / contention * padding)});
     }
     
-    await delay(10000);
+    await delay(3000);
 
     // End workers
     cpuWorkers.forEach((w) => w.terminate());
@@ -47,17 +47,21 @@ async function cpuAtomicTest(contention=1, padding=1) {
 async function cpuAtomicSweep(contention = 8, padding = 8) {
     console.log(`Detected ${navigator.hardwareConcurrency} logical cores...`);
     console.log(`Sweeping through CPU atomics with contention from 1-${contention} and padding from 1-${padding}`);
+    $('#heatmap-progress').css('display', 'block');
+    $('#heatmap-progress').prop('value', 0);
+    $('#heatmap-progress').prop('max', (Math.log2(contention) + 1) * (Math.log2(padding) + 1));
     let x = [];
     let y = [];
     let z = [];
     for (let c = 1; c <= contention; c *= 2) x.push(c);
 
     let layout = {
-        title: 'CPU Atomic Results',
+        //title: 'CPU Atomic Results',
         xaxis: { type : 'category', title: 'Contention' },
         yaxis: { type : 'category', title : 'Padding' },
         annotations : []
     };
+    let test_num = 0;
     for (let p = 1; p <= padding; p *= 2) {
         y.push(p);
         let row = [];
@@ -73,10 +77,12 @@ async function cpuAtomicSweep(contention = 8, padding = 8) {
                 showarrow: false,
                 bgcolor: 'black'
             });
+            test_num++;
+            $('#heatmap-progress').prop('value', test_num);
         }
         z.push(row);
     }
-    Plotly.newPlot('cpu-results', [{
+    Plotly.newPlot('cpu-heatmap', [{
         x : x,
         y : y,
         z : z,
@@ -106,7 +112,7 @@ async function gpuAtomicSweep(contention=1, padding=1) {
     console.log(`Sweeping through GPU atomics with contention from 1-${contention} and padding from 1-${padding}`);
     let adapter, device;
     try {
-        ({ adapter, device }) = await initializeGPU();
+        ({ adapter, device } = await initializeGPU());
     } catch (e) {
         alert('Error initializing WebGPU - check console for more info.');
         console.error(e);
@@ -115,12 +121,16 @@ async function gpuAtomicSweep(contention=1, padding=1) {
     
 }
 
-
-
-//cpuAtomicSweep(4, 4);
-//cpuAtomicTest(4, 1);
-
 document.addEventListener('DOMContentLoaded', async () => {
     //await cpuAtomicSweep(navigator.hardwareConcurrency, 16);
-    await gpuAtomicSweep(16, 16);
+    //await gpuAtomicSweep(16, 16);
+    $('#start-tests').on('click', async () => {
+        $('#start-tests').prop('disabled', true);
+        $('#num-threads').text(`Detected ${navigator.hardwareConcurrency} logical threads on CPU.`);
+        $('#cpu-baseline').text(`${parseFloat((await cpuAtomicTest(1, 1)).toFixed(2))} atomic ops/microsecond`);
+        $('#cpu-contention').text(`${parseFloat((await cpuAtomicTest(4, 1)).toFixed(2))} atomic ops/microsecond`);
+        $('#cpu-padding').text(`${parseFloat((await cpuAtomicTest(1, 16)).toFixed(2))} atomic ops/microsecond`);
+        await cpuAtomicSweep(navigator.hardwareConcurrency, 16);
+    });
 });
+
